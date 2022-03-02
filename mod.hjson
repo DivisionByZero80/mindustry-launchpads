@@ -1,0 +1,9 @@
+{
+    name: "launchpad-destination-changer",
+    displayName: "Launchpad Destination Changer",
+    description: "Change selected sector export destination from planet screen",
+    author: "DivisionByZero",
+    version: "0.1",
+    minGameVersion: 126,
+    hidden: true
+}

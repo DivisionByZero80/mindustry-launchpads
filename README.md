@@ -1,1 +1,3 @@
-# mindustry-launchpads
+# Launchpad Destination Changer
+
+mindustry mod
