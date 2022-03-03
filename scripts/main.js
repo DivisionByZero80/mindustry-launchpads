@@ -1,8 +1,10 @@
 // () => { source: Sector[], route: string }[]
 const getSectors = () => {
-  const sectors = Planets.serpulo.sectors
-    .toArray()
-    .filter((sector) => sector.info.anyExports());
+  const sectors = Planets.serpulo.sectors.toArray().filter((sector) => {
+    return Version.build >= 135
+      ? sector.info.anyExports()
+      : sector.info.exports.size >= 0;
+  });
 
   const sectorInfo = sectors.map((sector) => ({
     source: [sector],
@@ -73,8 +75,8 @@ const updateDestinations = (sources, destination) => {
   );
 };
 
-Events.on(ClientLoadEvent, () =>
+Events.on(ClientLoadEvent, () => {
   addSelectionButton((sectorInfo) =>
     showSelectionDialog(sectorInfo, updateDestinations)
-  )
-);
+  );
+});
