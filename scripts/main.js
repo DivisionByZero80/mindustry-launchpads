@@ -1,68 +1,80 @@
-let dialog;
-
-const prepareDialog = () => {
-  dialog = extend(BaseDialog, "Exporting Sectors", {
-    addSectorButton(t, text, sectors) {
-      t.button(text, () => {
-        Vars.ui.planet.showSelect(sectors[0].value, (d) =>
-          sectors.forEach((sector) => {
-            if (sector.value.id !== d.id) {
-              sector.value.info.destination = d;
-            }
-          })
-        );
-        this.hide();
-      })
-        .growX()
-        .pad(8);
-      t.row();
-    },
-    rebuild(sectors) {
-      this.cont.clear();
-      this.cont
-        .pane((t) => {
-          this.addSectorButton(t, "Redirect All", sectors);
-          sectors.forEach((sector) =>
-            this.addSectorButton(t, sector.text, [sector])
-          );
-        })
-        .size(400, 350);
-    },
-  });
-  dialog.addCloseButton();
-};
-
-const openDialog = () => {
+// () => { source: Sector[], route: string }[]
+const getSectors = () => {
   const sectors = Planets.serpulo.sectors
     .toArray()
-    .filter((sector) => sector.info.anyExports())
-    .map((sector) => ({
-      value: sector,
-      text:
-        sector.name() +
-        " -> " +
-        (sector.info.getRealDestination()
-          ? sector.info.getRealDestination().name()
-          : "Unknown"),
-    }));
+    .filter((sector) => sector.info.anyExports());
 
-  Core.app.post(() => {
-    dialog.rebuild(sectors);
-    dialog.show();
+  const sectorInfo = sectors.map((sector) => ({
+    source: [sector],
+    route:
+      sector.name() +
+      " -> " +
+      (sector.info.getRealDestination()
+        ? sector.info.getRealDestination().name()
+        : "None"),
+  }));
+
+  if (sectors.length >= 2) {
+    sectorInfo.unshift({ source: sectors, route: "Redirect All" });
+  }
+  return sectorInfo;
+};
+
+// ( cb: ( sectorInfo: { source: Sector[], route: string }[] ) => void ) => void
+const addSelectionButton = (cb) => {
+  Vars.ui.planet.shown(() => {
+    if (Vars.ui.planet.mode === PlanetDialog.Mode.look) {
+      const sectors = getSectors();
+      if (sectors.length) {
+        Vars.ui.planet.fill(
+          cons((t) => {
+            t.top().left().marginTop(5).marginLeft(5).defaults().size(200, 54);
+            t.button(
+              "Launchpads",
+              new TextureRegionDrawable(Blocks.launchPad.uiIcon),
+              Vars.iconSmall,
+              () => cb(sectors)
+            ).pad(2);
+          })
+        );
+      }
+    }
   });
 };
 
-Events.on(ClientLoadEvent, () => {
-  prepareDialog();
-  Vars.ui.planet.shown(() => {
-    if (Vars.ui.planet.mode === PlanetDialog.Mode.look) {
-      Vars.ui.planet.fill(
-        cons((t) => {
-          t.top().left().marginTop(5).marginLeft(5);
-          t.defaults().size(200, 54);
-          t.button("Launchpads", Icon.downOpen, openDialog);
+// ( sectorInfo: { source: Sector[], route: string }[], cb: (sources: Sector[], destination: Sector ) => void ) => void
+const showSelectionDialog = (sectorInfo, cb) => {
+  const dialog = new BaseDialog("Launchpads");
+  dialog.addCloseButton();
+  dialog.cont
+    .pane((t) =>
+      sectorInfo.forEach((sector) => {
+        t.button(sector.route, () => {
+          Vars.ui.planet.showSelect(sector.source[0], (d) =>
+            cb(sector.source, d)
+          );
+          dialog.hide();
         })
-      );
-    }
-  });
-});
+          .growX()
+          .pad(8);
+        t.row();
+      })
+    )
+    .size(400, 350);
+  dialog.show();
+};
+
+// (sources: Sector[], destination: Sector ) => void
+const updateDestinations = (sources, destination) => {
+  sources.forEach(
+    (sector) =>
+      (sector.info.destination =
+        sector.id !== destination.id ? destination : null)
+  );
+};
+
+Events.on(ClientLoadEvent, () =>
+  addSelectionButton((sectorInfo) =>
+    showSelectionDialog(sectorInfo, updateDestinations)
+  )
+);
