@@ -4,6 +4,6 @@
     description: "Change selected sector export destination from planet screen",
     author: "DivisionByZero",
     version: "0.1",
-    minGameVersion: 126,
+    minGameVersion: 135,
     hidden: true
 }
