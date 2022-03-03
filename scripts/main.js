@@ -3,7 +3,7 @@ const getSectors = () => {
   const sectors = Planets.serpulo.sectors.toArray().filter((sector) => {
     return Version.build >= 135
       ? sector.info.anyExports()
-      : sector.info.exports.size >= 0;
+      : sector.info.exports && sector.info.exports.size >= 0;
   });
 
   const sectorInfo = sectors.map((sector) => ({
@@ -33,8 +33,12 @@ const addSelectionButton = (cb) => {
             t.top().left().marginTop(5).marginLeft(5).defaults().size(200, 54);
             t.button(
               "Launchpads",
-              new TextureRegionDrawable(Blocks.launchPad.uiIcon),
-              Vars.iconSmall,
+              new TextureRegionDrawable(
+                Version.build >= 135
+                  ? Blocks.launchPad.uiIcon
+                  : Blocks.launchPad.icon(Cicon.small)
+              ),
+              Version.build >= 135 ? Vars.iconSmall : 24,
               () => cb(sectors)
             ).pad(2);
           })
