@@ -129,10 +129,13 @@ const showSelectionDialog = (exportInfo, callback) => {
 Events.on(ClientLoadEvent, () => {
   addSelectionButton((sectorInfo) =>
     showSelectionDialog(sectorInfo, (sources, destination) => {
-      sources.forEach((sector) => {
-        sector.info.destination =
-          sector.id !== destination.id ? destination : null;
-      });
+      sources.forEach((sector) =>
+        Core.app.post(() => {
+          sector.info.destination =
+            sector.id !== destination.id ? destination : null;
+          sector.saveInfo();
+        })
+      );
     })
   );
 });
