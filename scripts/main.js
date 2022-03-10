@@ -1,29 +1,70 @@
-// () => { source: Sector[], route: string }[]
+/** @param {SectorInfo} info */
+const hasExports = (info) => {
+  if (Version.build >= 135) {
+    return info.anyExports();
+  }
+  if (info.export.size === 0) {
+    return false;
+  }
+  // simulate anyExports logic from build 135
+  let returnval = 0;
+  info.export.each((_, e) => (returnval += e.mean));
+  return returnval >= 0.01;
+};
+
+/** @param {UnlockableContent | TextureRegion | null} content */
+const getIcon = (content) => {
+  let icon = content;
+
+  if (icon instanceof UnlockableContent) {
+    icon = Version.build >= 135 ? icon.icon(Cicon.small) : icon.uiIcon;
+  }
+
+  if (icon instanceof TextureRegion) {
+    return {
+      drawable: new TextureRegionDrawable(icon),
+      size: Version.build >= 135 ? Vars.iconSmall : 24,
+    };
+  }
+  return null;
+};
+
 const getSectors = () => {
-  const sectors = Planets.serpulo.sectors.toArray().filter((sector) => {
-    return Version.build >= 135
-      ? sector.info.anyExports()
-      : sector.info.exports && sector.info.exports.size >= 0;
-  });
+  const sectors = /** @type {Sector[]}*/ (
+    Planets.serpulo.sectors.toArray()
+  ).filter((sector) => hasExports(sector.info));
 
   const sectorInfo = sectors.map((sector) => ({
     source: [sector],
+    icon: getIcon(sector.icon()),
     route:
       sector.name() +
       " -> " +
-      (sector.info.getRealDestination()
-        ? sector.info.getRealDestination().name()
-        : "None"),
+      (sector.info.destination ? sector.info.destination.name() : "None"),
   }));
 
   if (sectors.length >= 2) {
-    sectorInfo.unshift({ source: sectors, route: "Redirect All" });
+    sectorInfo.unshift({ source: sectors, icon: null, route: "Redirect All" });
   }
   return sectorInfo;
 };
 
-// ( cb: ( sectorInfo: { source: Sector[], route: string }[] ) => void ) => void
-const addSelectionButton = (cb) => {
+/**
+ * @param {*} t
+ * @param {string} text
+ * @param {IconInfo|null} icon
+ * @param {() => void} callback
+ */
+const createButton = (t, text, icon, callback) => {
+  return icon !== null
+    ? t.button(text, icon.drawable, icon.size, callback)
+    : t.button(text, callback);
+};
+
+/**
+ * @param {(sectors: ExportInfo[] ) => void} callback
+ */
+const addSelectionButton = (callback) => {
   Vars.ui.planet.shown(() => {
     if (Vars.ui.planet.mode === PlanetDialog.Mode.look) {
       const sectors = getSectors();
@@ -31,16 +72,9 @@ const addSelectionButton = (cb) => {
         Vars.ui.planet.fill(
           cons((t) => {
             t.top().left().marginTop(5).marginLeft(5).defaults().size(200, 54);
-            t.button(
-              "Launchpads",
-              new TextureRegionDrawable(
-                Version.build >= 135
-                  ? Blocks.launchPad.uiIcon
-                  : Blocks.launchPad.icon(Cicon.small)
-              ),
-              Version.build >= 135 ? Vars.iconSmall : 24,
-              () => cb(sectors)
-            ).pad(2);
+            createButton(t, "Launchpads", getIcon(Blocks.launchPad), () => {
+              callback(sectors);
+            }).pad(2);
           })
         );
       }
@@ -48,16 +82,38 @@ const addSelectionButton = (cb) => {
   });
 };
 
-// ( sectorInfo: { source: Sector[], route: string }[], cb: (sources: Sector[], destination: Sector ) => void ) => void
-const showSelectionDialog = (sectorInfo, cb) => {
+/**
+ * @param {Sector[]} sectors
+ * @returns {Sector}
+ */
+const getSourceSector = (sectors) => {
+  let sector;
+  try {
+    if (Version.build >= 135) {
+      sector = Vars.ui.planet.state.planet.getLastSector();
+    } else {
+      sector = Vars.ui.planet.planets.planet.getLastSector();
+    }
+  } catch (e) {
+    sector = null;
+  }
+  return sector === null ? sectors[0] : sector;
+};
+
+/**
+ * @param {ExportInfo[]} exportInfo
+ * @param {(sources: Sector[], destination: Sector ) => void } callback
+ */
+const showSelectionDialog = (exportInfo, callback) => {
   const dialog = new BaseDialog("Launchpads");
   dialog.addCloseButton();
   dialog.cont
     .pane((t) =>
-      sectorInfo.forEach((sector) => {
-        t.button(sector.route, () => {
-          Vars.ui.planet.showSelect(sector.source[0], (d) =>
-            cb(sector.source, d)
+      exportInfo.forEach((sector) => {
+        createButton(t, sector.route, sector.icon, () => {
+          Vars.ui.planet.showSelect(
+            getSourceSector(sector.source),
+            (/** @type {Sector} */ d) => callback(sector.source, d)
           );
           dialog.hide();
         })
@@ -70,17 +126,13 @@ const showSelectionDialog = (sectorInfo, cb) => {
   dialog.show();
 };
 
-// (sources: Sector[], destination: Sector ) => void
-const updateDestinations = (sources, destination) => {
-  sources.forEach(
-    (sector) =>
-      (sector.info.destination =
-        sector.id !== destination.id ? destination : null)
-  );
-};
-
 Events.on(ClientLoadEvent, () => {
   addSelectionButton((sectorInfo) =>
-    showSelectionDialog(sectorInfo, updateDestinations)
+    showSelectionDialog(sectorInfo, (sources, destination) => {
+      sources.forEach((sector) => {
+        sector.info.destination =
+          sector.id !== destination.id ? destination : null;
+      });
+    })
   );
 });
