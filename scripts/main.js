@@ -12,21 +12,21 @@ const hasExports = (info) => {
   return returnval >= 0.01;
 };
 
-/** @param {UnlockableContent | TextureRegion | null} content */
-const getIcon = (content) => {
-  let icon = content;
-
-  if (icon instanceof UnlockableContent) {
-    icon = Version.build >= 135 ? icon.icon(Cicon.small) : icon.uiIcon;
+/**
+ * @param {Sector|null} sector
+ * @returns {string}
+ */
+const getSectorName = (sector) => {
+  if (sector === null) {
+    return "None";
   }
-
-  if (icon instanceof TextureRegion) {
-    return {
-      drawable: new TextureRegionDrawable(icon),
-      size: Version.build >= 135 ? Vars.iconSmall : 24,
-    };
+  let icon = "";
+  if (Version.build >= 135 && !!sector.info.contentIcon) {
+    icon = sector.info.contentIcon.emoji() + " ";
+  } else if (sector.info.icon !== null) {
+    icon = String.fromCharCode(Iconc.codes.get(sector.info.icon)) + " ";
   }
-  return null;
+  return icon + sector.name();
 };
 
 const getSectors = () => {
@@ -36,29 +36,18 @@ const getSectors = () => {
 
   const sectorInfo = sectors.map((sector) => ({
     source: [sector],
-    icon: getIcon(sector.icon()),
     route:
-      sector.name() +
-      " -> " +
-      (sector.info.destination ? sector.info.destination.name() : "None"),
+      getSectorName(sector) +
+      "\n\n" +
+      String.fromCharCode(Iconc.codes.get("rightOpen")) +
+      " " +
+      getSectorName(sector.info.destination),
   }));
 
   if (sectors.length >= 2) {
-    sectorInfo.unshift({ source: sectors, icon: null, route: "Redirect All" });
+    sectorInfo.unshift({ source: sectors, route: "Redirect All" });
   }
   return sectorInfo;
-};
-
-/**
- * @param {*} t
- * @param {string} text
- * @param {IconInfo|null} icon
- * @param {() => void} callback
- */
-const createButton = (t, text, icon, callback) => {
-  return icon !== null
-    ? t.button(text, icon.drawable, icon.size, callback)
-    : t.button(text, callback);
 };
 
 /**
@@ -72,10 +61,14 @@ const addSelectionButton = (callback) => {
         Vars.ui.planet.fill(
           cons((t) => {
             t.top().left().marginTop(5).marginLeft(5).defaults().size(200, 54);
-            createButton(
-              t,
+            t.button(
               "Launchpads",
-              getIcon(Blocks.launchPad),
+              new TextureRegionDrawable(
+                Version.build >= 135
+                  ? Blocks.launchPad.uiIcon
+                  : Blocks.launchPad.icon(Cicon.small)
+              ),
+              Version.build >= 135 ? Vars.iconSmall : 24,
               callback
             ).pad(2);
           })
@@ -122,25 +115,29 @@ const getDestinationDialog = (() => {
  * @param {(sources: Sector[], destination: Sector ) => void } callback
  */
 const showSelectionDialog = (callback) => {
+  const exportInfo = getSectors();
   const dialog = new BaseDialog("Launchpads");
   dialog.addCloseButton();
-  const exportInfo = getSectors();
+
   dialog.cont
-    .pane((t) =>
-      exportInfo.forEach((sector) => {
-        createButton(t, sector.route, sector.icon, () => {
-          getDestinationDialog().showSelect(
-            getSourceSector(sector.source),
-            (/** @type {Sector} */ d) => callback(sector.source, d)
-          );
-          dialog.hide();
-        })
-          .growX()
-          .pad(8);
-        t.row();
+    .defaults()
+    .width(Vars.mobile ? 500 : 560)
+    .pad(4);
+  dialog.cont.pane((t) =>
+    exportInfo.forEach((sector) => {
+      t.button(sector.route, () => {
+        getDestinationDialog().showSelect(
+          getSourceSector(sector.source),
+          (/** @type {Sector} */ d) => callback(sector.source, d)
+        );
+        dialog.hide();
       })
-    )
-    .size(400, 350);
+        .growX()
+        .pad(8)
+        .wrap();
+      t.row();
+    })
+  );
   dialog.show();
 };
 
@@ -154,6 +151,7 @@ Events.on(ClientLoadEvent, () => {
           sector.saveInfo();
         })
       );
+      Vars.ui.planet.lookAt(destination, 1);
     })
   );
 });

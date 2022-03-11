@@ -3,7 +3,7 @@
     displayName: "Serpulo Launchpad Hub",
     description: "Change sector export destination from list on planet screen",
     author: "DivisionByZero",
-    version: "0.2",
+    version: "1.0",
     minGameVersion: 126,
     hidden: true
 }
