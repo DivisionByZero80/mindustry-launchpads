@@ -62,7 +62,7 @@ const createButton = (t, text, icon, callback) => {
 };
 
 /**
- * @param {(sectors: ExportInfo[] ) => void} callback
+ * @param {() => void} callback
  */
 const addSelectionButton = (callback) => {
   Vars.ui.planet.shown(() => {
@@ -72,9 +72,12 @@ const addSelectionButton = (callback) => {
         Vars.ui.planet.fill(
           cons((t) => {
             t.top().left().marginTop(5).marginLeft(5).defaults().size(200, 54);
-            createButton(t, "Launchpads", getIcon(Blocks.launchPad), () => {
-              callback(sectors);
-            }).pad(2);
+            createButton(
+              t,
+              "Launchpads",
+              getIcon(Blocks.launchPad),
+              callback
+            ).pad(2);
           })
         );
       }
@@ -100,18 +103,33 @@ const getSourceSector = (sectors) => {
   return sector === null ? sectors[0] : sector;
 };
 
+const getDestinationDialog = (() => {
+  let dialog;
+  return () => {
+    if (!dialog) {
+      dialog = extend(PlanetDialog, {
+        playSelected() {
+          this.listener.get(this.selected);
+          this.hide();
+        },
+      });
+    }
+    return dialog;
+  };
+})();
+
 /**
- * @param {ExportInfo[]} exportInfo
  * @param {(sources: Sector[], destination: Sector ) => void } callback
  */
-const showSelectionDialog = (exportInfo, callback) => {
+const showSelectionDialog = (callback) => {
   const dialog = new BaseDialog("Launchpads");
   dialog.addCloseButton();
+  const exportInfo = getSectors();
   dialog.cont
     .pane((t) =>
       exportInfo.forEach((sector) => {
         createButton(t, sector.route, sector.icon, () => {
-          Vars.ui.planet.showSelect(
+          getDestinationDialog().showSelect(
             getSourceSector(sector.source),
             (/** @type {Sector} */ d) => callback(sector.source, d)
           );
@@ -127,8 +145,8 @@ const showSelectionDialog = (exportInfo, callback) => {
 };
 
 Events.on(ClientLoadEvent, () => {
-  addSelectionButton((sectorInfo) =>
-    showSelectionDialog(sectorInfo, (sources, destination) => {
+  addSelectionButton(() =>
+    showSelectionDialog((sources, destination) => {
       sources.forEach((sector) =>
         Core.app.post(() => {
           sector.info.destination =
